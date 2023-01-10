@@ -1,0 +1,1 @@
+data "haproxy_frontends" "fe" {}
