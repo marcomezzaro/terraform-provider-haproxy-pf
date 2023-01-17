@@ -1,4 +1,4 @@
-resource "haproxy_server" "s1" {
+resource "haproxy-pf_server" "s1" {
   name = "s1"
   address = "127.0.0.1"
   port = 8989

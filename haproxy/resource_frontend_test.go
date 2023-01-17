@@ -17,7 +17,7 @@ func TestAccFrontendResource(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: providerConfig + fmt.Sprintf(`
-				resource "haproxy_frontend" "%s" {
+				resource "haproxy-pf_frontend" "%s" {
 					name = "%s"
 					maxconn = 2000
 					mode = "http"
@@ -25,14 +25,14 @@ func TestAccFrontendResource(t *testing.T) {
 				}
 				`, frontendName, frontendName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_frontend.%s", frontendName), "name", frontendName),
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("haproxy_frontend.%s", frontendName), "id"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_frontend.%s", frontendName), "name", frontendName),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("haproxy-pf_frontend.%s", frontendName), "id"),
 				),
 			},
 
 			// ImportState testing
 			{
-				ResourceName:      fmt.Sprintf("haproxy_frontend.%s", frontendName),
+				ResourceName:      fmt.Sprintf("haproxy-pf_frontend.%s", frontendName),
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
@@ -40,26 +40,26 @@ func TestAccFrontendResource(t *testing.T) {
 			// Update and Read testing
 			{
 				Config: providerConfig + fmt.Sprintf(`
-				resource "haproxy_backend" "%s" {
+				resource "haproxy-pf_backend" "%s" {
 					name = "%s"
 					balance = "roundrobin"
 					mode = "tcp"
 				}
-				resource "haproxy_frontend" "%s" {
+				resource "haproxy-pf_frontend" "%s" {
 					name = "%s"
 					maxconn = 2000
 					mode = "tcp"
 					http_connection_mode = ""
 					default_backend = "%s"
 					depends_on = [
-						haproxy_backend.%s
+						haproxy-pf_backend.%s
 					]
 				}
 				`, backendName, backendName, frontendName, frontendName, backendName, backendName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_frontend.%s", frontendName), "name", frontendName),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_frontend.%s", frontendName), "mode", "tcp"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_frontend.%s", frontendName), "default_backend", backendName),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_frontend.%s", frontendName), "name", frontendName),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_frontend.%s", frontendName), "mode", "tcp"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_frontend.%s", frontendName), "default_backend", backendName),
 				),
 			},
 			// Delete testing automatically occurs in TestCase

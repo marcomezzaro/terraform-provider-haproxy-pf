@@ -38,7 +38,7 @@ type haproxyProviderModel struct {
 
 // Metadata returns the provider type name.
 func (p *haproxyProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "haproxy"
+	resp.TypeName = "haproxy-pf"
 }
 
 // Schema defines the provider-level schema for configuration data.

@@ -1,1 +1,1 @@
-data "haproxy_backends" "be" {}
+data "haproxy-pf_backends" "be" {}

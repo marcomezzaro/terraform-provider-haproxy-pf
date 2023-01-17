@@ -1,1 +1,1 @@
-data "haproxy_frontends" "fe" {}
+data "haproxy-pf_frontends" "fe" {}

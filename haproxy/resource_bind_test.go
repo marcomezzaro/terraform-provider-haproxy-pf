@@ -17,59 +17,59 @@ func TestAccBindResource(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: providerConfig + fmt.Sprintf(`
-				resource "haproxy_frontend" "%s" {
+				resource "haproxy-pf_frontend" "%s" {
 					name = "%s"
 					maxconn = 2000
 					mode = "http"
 					http_connection_mode = ""
 				}
-				resource "haproxy_bind" "%s" {
+				resource "haproxy-pf_bind" "%s" {
 					name = "%s"
 					address = "127.0.0.1"
 					port = 9999
 					parent_name = "%s"
 					depends_on = [
-						haproxy_frontend.%s
+						haproxy-pf_frontend.%s
 					]
 				}
 				`, frontendName, frontendName, bindName, bindName, frontendName, frontendName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "name", bindName),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "port", "9999"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "address", "127.0.0.1"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "name", bindName),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "port", "9999"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "address", "127.0.0.1"),
 					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet(fmt.Sprintf("haproxy_bind.%s", bindName), "id"),
+					resource.TestCheckResourceAttrSet(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "id"),
 				),
 			},
 			// ImportState testing
 			{
-				ResourceName:      fmt.Sprintf("haproxy_bind.%s", bindName),
+				ResourceName:      fmt.Sprintf("haproxy-pf_bind.%s", bindName),
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
 			// Update and Read testing
 			{
 				Config: providerConfig + fmt.Sprintf(`
-				resource "haproxy_frontend" "%s" {
+				resource "haproxy-pf_frontend" "%s" {
 					name = "%s"
 					maxconn = 2000
 					mode = "http"
 					http_connection_mode = ""
 				}
-				resource "haproxy_bind" "%s" {
+				resource "haproxy-pf_bind" "%s" {
 					name = "%s"
 					address = "127.0.0.1"
 					port = 8888
 					parent_name = "%s"
 					depends_on = [
-						haproxy_frontend.%s
+						haproxy-pf_frontend.%s
 					]
 				}
 				`, frontendName, frontendName, bindName, bindName, frontendName, frontendName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "name", bindName),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "port", "8888"),
-					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy_bind.%s", bindName), "address", "127.0.0.1"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "name", bindName),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "port", "8888"),
+					resource.TestCheckResourceAttr(fmt.Sprintf("haproxy-pf_bind.%s", bindName), "address", "127.0.0.1"),
 				),
 			},
 			// Delete testing automatically occurs in TestCase

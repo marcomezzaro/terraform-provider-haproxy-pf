@@ -16,7 +16,7 @@ const (
 	// It is also possible to use the HAPROXY_ environment variables instead,
 	// such as updating the Makefile and running the testing through that tool.
 	providerConfig = `
-provider "haproxy" {
+provider "haproxy-pf" {
   username = "admin"
   password = "adminpwd"
 	host     = "localhost:5555"
@@ -31,7 +31,7 @@ var (
 	// CLI command executed to create a provider server to which the CLI can
 	// reattach.
 	testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-		"haproxy": providerserver.NewProtocol6WithError(New()),
+		"haproxy-pf": providerserver.NewProtocol6WithError(New()),
 	}
 	testAccProviders map[string]*haproxyProvider
 	testAccProvider  *haproxyProvider
