@@ -42,6 +42,7 @@ terraform
 # bin itself
 terraform-provider-haproxy-pf
 
-
 # demo folder
 demo/
+
+.vscode/

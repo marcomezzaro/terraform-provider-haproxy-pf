@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/avast/retry-go/v4"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -102,38 +104,36 @@ func (r *serverResource) Create(ctx context.Context, req resource.CreateRequest,
 		Check:   plan.Check.ValueString(),
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// Create new server
-	response, err := r.client.CreateServer(transaction.Id, payload, plan.ParentName.ValueString())
-	if err != nil {
+	var response *models.Server
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Create new server
+			create_response, err := r.client.CreateServer(transaction.Id, payload, plan.ParentName.ValueString())
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			response = create_response
+			return nil
+		},
+	)
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating server",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Could not create server, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -224,40 +224,33 @@ func (r *serverResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Update existing server
+			_, err = r.client.UpdateServer(transaction.Id, payload, parentName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Update existing server
-	_, err = r.client.UpdateServer(transaction.Id, payload, parentName)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Updating Haproxy Server",
-			"Could not update server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error updating server",
+			"Could not update server, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -300,44 +293,36 @@ func (r *serverResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 	parentName, serverName, _ := middleware.ResourceParseId(ctx, state.ID.String())
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Delete existing server
+			err = r.client.DeleteServer(transaction.Id, serverName, parentName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create server, unexpected error: "+err.Error(),
+			"Error deleting server",
+			"Could not delete server, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Delete existing server
-	err = r.client.DeleteServer(transaction.Id, serverName, parentName)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Deleting Haproxy Server",
-			"Could not delete server, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
 }
 
 func (r *serverResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

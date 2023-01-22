@@ -5,6 +5,7 @@ import (
 	"terraform-provider-haproxy-pf/haproxy/middleware"
 	"terraform-provider-haproxy-pf/haproxy/models"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -113,38 +114,36 @@ func (r *frontendResource) Create(ctx context.Context, req resource.CreateReques
 		HTTPConnectionMode: plan.HTTPConnectionMode.ValueString(),
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// Create new frontend
-	response, err := r.client.CreateFrontend(transaction.Id, payload)
-	if err != nil {
+	var response *models.Frontend
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Create new frontend
+			create_response, err := r.client.CreateFrontend(transaction.Id, payload)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			response = create_response
+			return nil
+		},
+	)
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating frontend",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Could not create frontend, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -236,40 +235,37 @@ func (r *frontendResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
 
-	// Update existing frontend
-	_, err = r.client.UpdateFrontend(transaction.Id, frontendName, payload)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Updating Haproxy Frontend",
-			"Could not update frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
+			// Update existing frontend
+			_, err = r.client.UpdateFrontend(transaction.Id, frontendName, payload)
+			if err != nil {
+				return err
+			}
 
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error updating frontend",
+			"Could not update frontend, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -314,40 +310,33 @@ func (r *frontendResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	_, frontendName, _ := middleware.ResourceParseId(ctx, state.ID.String())
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Delete existing frontend
+			err = r.client.DeleteFrontend(transaction.Id, frontendName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Delete existing frontend
-	err = r.client.DeleteFrontend(transaction.Id, frontendName)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Deleting Haproxy Frontend",
-			"Could not delete frontend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error deleting frontend",
+			"Could not delete frontend, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}

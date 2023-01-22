@@ -103,10 +103,10 @@ func (d *frontendsDataSource) Read(ctx context.Context, req datasource.ReadReque
 	// Map response body to model
 	for _, frontend := range frontends.Data {
 		frontendState := frontendsModel{
-			ID: types.StringValue(frontend.Name),
-			Name: types.StringValue(frontend.Name),
-			Mode: types.StringValue(frontend.Mode),
-			Maxconn: types.Int64Value(frontend.Maxconn),
+			ID:                 types.StringValue(frontend.Name),
+			Name:               types.StringValue(frontend.Name),
+			Mode:               types.StringValue(frontend.Mode),
+			Maxconn:            types.Int64Value(frontend.Maxconn),
 			HTTPConnectionMode: types.StringValue(frontend.HTTPConnectionMode),
 		}
 

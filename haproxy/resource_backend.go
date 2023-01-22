@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/avast/retry-go/v4"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -93,38 +95,37 @@ func (r *backendResource) Create(ctx context.Context, req resource.CreateRequest
 		Balance: balance,
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// Create new backend
-	response, err := r.client.CreateBackend(transaction.Id, payload)
-	if err != nil {
+	var response *models.Backend
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Create new backend
+			create_response, err := r.client.CreateBackend(transaction.Id, payload)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			response = create_response
+			return nil
+		},
+	)
+
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating backend",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Could not create backend, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -215,42 +216,37 @@ func (r *backendResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Update existing backend
+			_, err = r.client.UpdateBackend(transaction.Id, backendName, payload)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create backend, unexpected error: "+err.Error(),
+			"Error updating backend",
+			"Could not update backend, unexpected error: "+retry_err.Error(),
 		)
 		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
 
-	// Update existing backend
-	_, err = r.client.UpdateBackend(transaction.Id, backendName, payload)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Updating Haproxy Backend",
-			"Could not update backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
-		)
-		return
 	}
 
 	// Fetch updated items from GetOrder as UpdateOrder items are not
@@ -292,40 +288,34 @@ func (r *backendResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	_, backendName, _ := middleware.ResourceParseId(ctx, state.ID.String())
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Delete existing backend
+			err = r.client.DeleteBackend(transaction.Id, backendName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Delete existing backend
-	err = r.client.DeleteBackend(transaction.Id, backendName)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Deleting Haproxy Backend",
-			"Could not delete backend, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error deleting backend",
+			"Could not delete backend, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}

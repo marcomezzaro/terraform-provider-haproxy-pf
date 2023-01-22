@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/avast/retry-go/v4"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -96,41 +98,37 @@ func (r *bindResource) Create(ctx context.Context, req resource.CreateRequest, r
 		Port:    plan.Port.ValueInt64(),
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	// Create new bind
-	response, err := r.client.CreateBind(transaction.Id, payload, plan.ParentName.ValueString())
-	if err != nil {
+	var response *models.Bind
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Create new bind
+			create_response, err := r.client.CreateBind(transaction.Id, payload, plan.ParentName.ValueString())
+			if err != nil {
+				return nil
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			response = create_response
+			return nil
+		})
+
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating bind",
-			"Could not create bind, unexpected error: "+err.Error(),
+			"Could not create bind, unexpected error: "+retry_err.Error(),
 		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
-		)
-		return
 	}
 
 	// Map response body to schema and populate Computed attribute values
@@ -216,40 +214,34 @@ func (r *bindResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Update existing bind
+			_, err = r.client.UpdateBind(transaction.Id, payload, parentName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 
-	// Update existing bind
-	_, err = r.client.UpdateBind(transaction.Id, payload, parentName)
-	if err != nil {
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error Updating Haproxy Bind",
-			"Could not update bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error updating bind",
+			"Could not update bind, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
@@ -291,40 +283,33 @@ func (r *bindResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 	parentName, bindName, _ := middleware.ResourceParseId(ctx, state.ID.String())
 
-	// Open transaction
-	configuration, err := r.client.GetConfiguration()
-	if err != nil {
+	retry_err := retry.Do(
+		func() error {
+			// Open transaction
+			configuration, err := r.client.GetConfiguration()
+			if err != nil {
+				return err
+			}
+			transaction, err := r.client.CreateTransaction(configuration.Version)
+			if err != nil {
+				return err
+			}
+			// Delete existing bind
+			err = r.client.DeleteBind(transaction.Id, bindName, parentName)
+			if err != nil {
+				return err
+			}
+			// commit transaction
+			_, err = r.client.CommitTransaction(transaction.Id)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	if retry_err != nil {
 		resp.Diagnostics.AddError(
-			"Error getting configuration",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-	transaction, err := r.client.CreateTransaction(configuration.Version)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating haproxy dataplane transaction",
-			"Could not create bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// Delete existing bind
-	err = r.client.DeleteBind(transaction.Id, bindName, parentName)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Deleting Haproxy Bind",
-			"Could not delete bind, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	// commit transaction
-	_, err = r.client.CommitTransaction(transaction.Id)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error committing transaction",
-			"Could not commit transaction, unexpected error: "+err.Error(),
+			"Error deleting bind",
+			"Could not delete bind, unexpected error: "+retry_err.Error(),
 		)
 		return
 	}
