@@ -1,0 +1,1 @@
+data "haproxy-pf_resolvers" "resolvers" {}

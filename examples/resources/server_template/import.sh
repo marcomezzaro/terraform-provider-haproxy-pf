@@ -1,0 +1,1 @@
+terraform import haproxy-pf_server_template parent-backend-name/server-resource-name

@@ -172,6 +172,7 @@ func (p *haproxyProvider) DataSources(_ context.Context) []func() datasource.Dat
 	return []func() datasource.DataSource{
 		NewBackendsDataSource,
 		NewFrontendsDataSource,
+		NewResolversDataSource,
 	}
 }
 
@@ -182,5 +183,6 @@ func (p *haproxyProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewFrontendResource,
 		NewBindResource,
 		NewServerResource,
+		NewServerTemplateResource,
 	}
 }

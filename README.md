@@ -10,6 +10,7 @@ Checklist:
 - [x] Frontend
 - [x] Bind
 - [x] Server
+- [x] Server Template
 
 TODO:
 
