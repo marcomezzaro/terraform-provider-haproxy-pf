@@ -1,1 +1,1 @@
-terraform import haproxy-pf_server_template parent-backend-name/server-resource-name
+terraform import haproxy-pf_server_template.server-resource-name parent-backend-name/prefix-name
