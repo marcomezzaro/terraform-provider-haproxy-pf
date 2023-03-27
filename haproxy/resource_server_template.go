@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/avast/retry-go/v4"
@@ -74,6 +76,9 @@ func (r *serverTemplateResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"prefix": schema.StringAttribute{
 				Required: true,
 				Optional: false,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"check": schema.StringAttribute{
 				Required: true,
@@ -86,6 +91,9 @@ func (r *serverTemplateResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"parent_name": schema.StringAttribute{
 				Required: true,
 				Optional: false,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
